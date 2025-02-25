@@ -366,7 +366,7 @@ fn match_entity_slow<'a>(
     iter: &'a mut slice::Iter<u8>,
     context: Context,
 ) -> Option<Cow<'a, [u8]>> {
-    use crate::{ENTITIES, ENTITY_MAX_LENGTH, ENTITY_MIN_LENGTH};
+    use crate::{get_entity, ENTITY_MAX_LENGTH, ENTITY_MIN_LENGTH};
     use std::cmp::min;
 
     assert_peek_eq(iter, Some(b'&'), "match_entity() expected '&'");
@@ -450,7 +450,7 @@ fn match_entity_slow<'a>(
         // See `unescape_in()` documentation for examples.
         //
         // https://html.spec.whatwg.org/multipage/parsing.html#named-character-reference-state
-        if let Some(&expansion) = ENTITIES.get(candidate) {
+        if let Some(expansion) = get_entity(candidate) {
             *iter = candidate_iter;
             return Some(expansion.into());
         }
@@ -458,7 +458,7 @@ fn match_entity_slow<'a>(
         // Find longest matching entity.
         let max_len = min(candidate.len(), ENTITY_MAX_LENGTH);
         for check_len in (ENTITY_MIN_LENGTH..=max_len).rev() {
-            if let Some(&expansion) = ENTITIES.get(&candidate[..check_len]) {
+            if let Some(expansion) = get_entity(&candidate[..check_len]) {
                 // Found a match. check_len starts at ENTITY_MIN_LENGTH, which
                 // must always be greater than 0, so `check_len - 1` is safe.
                 debug_assert!(check_len >= 1);

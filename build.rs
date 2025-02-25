@@ -52,6 +52,8 @@ fn generate_entities_rs(entities: &[(String, String)]) {
         /// Entity                         | Codepoints         | Glyph\n\
         /// -------------------------------|--------------------|------").unwrap();
 
+    let mut hashify = String::new();
+
     let mut map_builder = phf_codegen::Map::<&[u8]>::new();
     let mut max_len: usize = 0;
     let mut min_len: usize = usize::MAX;
@@ -59,6 +61,15 @@ fn generate_entities_rs(entities: &[(String, String)]) {
         map_builder.entry(name.as_bytes(), &format!("&{:?}", glyph.as_bytes()));
         max_len = max(max_len, name.len());
         min_len = min(min_len, name.len());
+
+        {
+            use std::fmt::Write;
+            write!(&mut hashify, "\n        b\"{name}\" => &[").unwrap();
+            for &byte in glyph.as_bytes() {
+                write!(&mut hashify, "{byte},").unwrap();
+            }
+            write!(&mut hashify, "],").unwrap();
+        }
 
         // `{:28}` would pad the output inside the backticks.
         let name = format!("`{name}`");
@@ -84,15 +95,23 @@ fn generate_entities_rs(entities: &[(String, String)]) {
     let map = map_builder.build();
     writeln!(
         out,
-        "\
-        #[allow(clippy::unreadable_literal)]\n\
-        pub static ENTITIES: phf::Map<&[u8], &[u8]> = {map};\n\
-        \n\
-        /// Length of longest entity including ‘&’ and possibly ‘;’.\n\
-        pub const ENTITY_MAX_LENGTH: usize = {max_len};\n\
-        \n\
-        /// Length of shortest entity including ‘&’ and possibly ‘;’.\n\
-        pub const ENTITY_MIN_LENGTH: usize = {min_len};"
+        r#"#[allow(clippy::unreadable_literal)]
+pub static ENTITIES: phf::Map<&[u8], &[u8]> = {map};
+
+/// Length of longest entity including ‘&’ and possibly ‘;’.
+pub const ENTITY_MAX_LENGTH: usize = {max_len};
+
+/// Length of shortest entity including ‘&’ and possibly ‘;’.
+pub const ENTITY_MIN_LENGTH: usize = {min_len};
+
+/// Get an unescaped character by its HTML entity
+pub(crate) fn get_entity(candidate: &[u8]) -> Option<&[u8]> {{
+    hashify::map! {{
+        candidate,
+        &[u8],{hashify}
+    }}
+}}
+"#
     )
     .unwrap();
 }
